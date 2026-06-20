@@ -51,22 +51,33 @@ def set_font(run, name='微软雅黑', size=Pt(10.5), color=None, bold=False):
     if color: run.font.color.rgb = color
     run.bold = bold
 
-def H(text, level=1):
-    """标题层级：0=书名 1=大章 2=专题 3=小节 4=子模块"""
-    sizes = {0: Pt(20), 1: Pt(15), 2: Pt(13), 3: Pt(11.5), 4: Pt(10.5)}
-    colors = {0: C['标题'], 1: C['一级'], 2: C['二级'], 3: C['知识'], 4: C['易混']}
-    h = doc.add_heading(text, level=level)
-    h.paragraph_format.space_before = Pt(12 if level <= 2 else 8)
-    h.paragraph_format.space_after = Pt(6 if level <= 2 else 4)
-    for r in h.runs:
-        set_font(r, size=sizes.get(level, Pt(11)), color=colors.get(level, C['标题']), bold=True)
+# ── 字体大小常量（全部显式 Pt）──
+S = {
+    '书名': Pt(18), '大章': Pt(14), '专题': Pt(12), '小节': Pt(11), '子模块': Pt(10.5),
+    '正文': Pt(10), '小字': Pt(9), '极小': Pt(8), '题号': Pt(10), '选项': Pt(9.5),
+    '答案': Pt(9.5), '解析': Pt(9), '标签': Pt(8),
+}
 
-def P(text, bold=False, size=Pt(10.5), color=None, indent=0):
-    """正文段落，indent 为缩进字符数"""
+def H(text, level=1):
+    """标题：不用 add_heading（Word 内置样式会覆盖字体），纯段落控制"""
+    size_map = {0: S['书名'], 1: S['大章'], 2: S['专题'], 3: S['小节'], 4: S['子模块']}
+    color_map = {0: C['标题'], 1: C['一级'], 2: C['二级'], 3: C['知识'], 4: C['易混']}
+    sz = size_map.get(level, S['正文'])
+    cl = color_map.get(level, C['标题'])
     p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_before = Pt(14 if level <= 1 else 10 if level == 2 else 6)
+    p.paragraph_format.space_after = Pt(6 if level <= 1 else 4 if level == 2 else 2)
+    p.paragraph_format.line_spacing = 1.15
+    run = p.add_run(text)
+    set_font(run, size=sz, color=cl, bold=True)
+
+def P(text, bold=False, size=None, color=None, indent=0):
+    """正文段落"""
+    if size is None: size = S['正文']
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(1)
     p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.line_spacing = 1.2
+    p.paragraph_format.line_spacing = 1.15
     if indent:
         p.paragraph_format.left_indent = Cm(indent * 0.5)
     run = p.add_run(text)
@@ -81,103 +92,57 @@ def sep():
     set_font(run, size=Pt(6), color=C['链接'])
 
 def Q(num, stem, options, answer, analysis, kp):
-    """选择题（单选/多选）"""
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(6)
+    """选择题"""
+    p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(6)
     run = p.add_run(f'{num}. {stem}')
-    set_font(run, size=Pt(10), bold=True)
+    set_font(run, size=S['题号'], bold=True)
     for o in options:
-        op = doc.add_paragraph()
-        op.paragraph_format.left_indent = Cm(0.8)
-        op.paragraph_format.space_after = Pt(0)
-        r = op.add_run(o)
-        set_font(r, size=Pt(9.5))
-    # 答案行
-    pa = doc.add_paragraph()
-    pa.paragraph_format.space_before = Pt(2)
-    ra = pa.add_run(f'▸ {answer}')
-    set_font(ra, size=Pt(9.5), color=C['正确'], bold=True)
-    # 解析
-    pa2 = doc.add_paragraph()
-    pa2.paragraph_format.left_indent = Cm(0.4)
-    pa2.paragraph_format.space_after = Pt(0)
-    r2 = pa2.add_run(f'{analysis}')
-    set_font(r2, size=Pt(9), color=C['正文'])
-    # 知识点
-    pa3 = doc.add_paragraph()
-    pa3.paragraph_format.left_indent = Cm(0.4)
-    pa3.paragraph_format.space_after = Pt(4)
-    r3 = pa3.add_run(f'〔{kp}〕')
-    set_font(r3, size=Pt(8), color=C['链接'])
+        op = doc.add_paragraph(); op.paragraph_format.left_indent = Cm(0.8); op.paragraph_format.space_after = Pt(0)
+        set_font(op.add_run(o), size=S['选项'])
+    pa = doc.add_paragraph(); pa.paragraph_format.space_before = Pt(2)
+    set_font(pa.add_run(f'▸ {answer}'), size=S['答案'], color=C['正确'], bold=True)
+    pa2 = doc.add_paragraph(); pa2.paragraph_format.left_indent = Cm(0.4); pa2.paragraph_format.space_after = Pt(0)
+    set_font(pa2.add_run(analysis), size=S['解析'])
+    pa3 = doc.add_paragraph(); pa3.paragraph_format.left_indent = Cm(0.4); pa3.paragraph_format.space_after = Pt(4)
+    set_font(pa3.add_run(f'〔{kp}〕'), size=S['标签'], color=C['链接'])
 
 def TF(num, stem, answer, analysis, kp):
     """判断题"""
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(6)
-    run = p.add_run(f'{num}. {stem}')
-    set_font(run, size=Pt(10), bold=True)
-    # 答案
+    p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(6)
+    set_font(p.add_run(f'{num}. {stem}'), size=S['题号'], bold=True)
     is_right = answer == '对'
     label = '✓ 正确' if is_right else '✗ 错误'
-    pa = doc.add_paragraph()
-    pa.paragraph_format.space_before = Pt(1)
-    ra = pa.add_run(f'{label}')
-    set_font(ra, size=Pt(9.5), color=C['正确'] if is_right else C['错误'], bold=True)
-    # 解析
-    pa2 = doc.add_paragraph()
-    pa2.paragraph_format.left_indent = Cm(0.4)
-    pa2.paragraph_format.space_after = Pt(0)
-    r2 = pa2.add_run(f'{analysis}')
-    set_font(r2, size=Pt(9), color=C['正文'])
-    # 知识点
-    pa3 = doc.add_paragraph()
-    pa3.paragraph_format.left_indent = Cm(0.4)
-    pa3.paragraph_format.space_after = Pt(4)
-    r3 = pa3.add_run(f'〔{kp}〕')
-    set_font(r3, size=Pt(8), color=C['链接'])
+    pa = doc.add_paragraph(); pa.paragraph_format.space_before = Pt(1)
+    set_font(pa.add_run(label), size=S['答案'], color=C['正确'] if is_right else C['错误'], bold=True)
+    pa2 = doc.add_paragraph(); pa2.paragraph_format.left_indent = Cm(0.4); pa2.paragraph_format.space_after = Pt(0)
+    set_font(pa2.add_run(analysis), size=S['解析'])
+    pa3 = doc.add_paragraph(); pa3.paragraph_format.left_indent = Cm(0.4); pa3.paragraph_format.space_after = Pt(4)
+    set_font(pa3.add_run(f'〔{kp}〕'), size=S['标签'], color=C['链接'])
 
 def Essay(num, stem, ref):
     """论述/材料分析题"""
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(8)
-    run = p.add_run(f'{num}. {stem}')
-    set_font(run, size=Pt(10.5), bold=True)
-    pa = doc.add_paragraph()
-    pa.paragraph_format.left_indent = Cm(0.4)
-    pa.paragraph_format.space_after = Pt(4)
-    ra = pa.add_run(f'▸ {ref}')
-    set_font(ra, size=Pt(9), color=C['正确'])
+    p = doc.add_paragraph(); p.paragraph_format.space_before = Pt(8)
+    set_font(p.add_run(f'{num}. {stem}'), size=S['小节'], bold=True)
+    pa = doc.add_paragraph(); pa.paragraph_format.left_indent = Cm(0.4); pa.paragraph_format.space_after = Pt(4)
+    set_font(pa.add_run(f'▸ {ref}'), size=S['解析'], color=C['正确'])
 
 def TBL(headers, rows):
-    """表格——统一紧凑样式"""
+    """表格"""
     table = doc.add_table(rows=len(rows)+1, cols=len(headers))
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    # 表头
     for i, h in enumerate(headers):
-        cell = table.rows[0].cells[i]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        p.paragraph_format.space_before = Pt(2)
-        p.paragraph_format.space_after = Pt(2)
-        run = p.add_run(h)
-        set_font(run, size=Pt(9), color=RGBColor(0xff,0xff,0xff), bold=True)
-        # 深色表头背景
-        shading = OxmlElement('w:shd')
-        shading.set(qn('w:fill'), '2c3e50')
+        cell = table.rows[0].cells[i]; cell.text = ''
+        p = cell.paragraphs[0]; p.paragraph_format.space_before = Pt(2); p.paragraph_format.space_after = Pt(2)
+        set_font(p.add_run(h), size=S['小字'], color=RGBColor(0xff,0xff,0xff), bold=True)
+        shading = OxmlElement('w:shd'); shading.set(qn('w:fill'), '2c3e50')
         cell._element.get_or_add_tcPr().append(shading)
-    # 数据行
     for ri, row in enumerate(rows):
         bg = 'f8f9fa' if ri % 2 == 0 else 'ffffff'
         for ci, val in enumerate(row):
-            cell = table.rows[ri+1].cells[ci]
-            cell.text = ''
-            p = cell.paragraphs[0]
-            p.paragraph_format.space_before = Pt(1)
-            p.paragraph_format.space_after = Pt(1)
-            run = p.add_run(val)
-            set_font(run, size=Pt(8.5))
-            shading = OxmlElement('w:shd')
-            shading.set(qn('w:fill'), bg)
+            cell = table.rows[ri+1].cells[ci]; cell.text = ''
+            p = cell.paragraphs[0]; p.paragraph_format.space_before = Pt(1); p.paragraph_format.space_after = Pt(1)
+            set_font(p.add_run(val), size=S['极小'])
+            shading = OxmlElement('w:shd'); shading.set(qn('w:fill'), bg)
             cell._element.get_or_add_tcPr().append(shading)
     doc.add_paragraph()
 
@@ -185,129 +150,129 @@ def Mix(title, pairs):
     """易混辨析"""
     H(f'⚡ 易混辨析：{title}', 4)
     for a, b, note in pairs:
-        P(f'• {a}  ≠  {b}', bold=True, size=Pt(9.5), color=C['易混'])
-        P(f'     {note}', size=Pt(9), indent=1)
+        P(f'• {a}  ≠  {b}', bold=True, size=S['小字'], color=C['易混'])
+        P(f'     {note}', size=S['极小'], indent=1)
 
 def FW(title, items):
     """数值框架"""
     H(f'🔢 数值框架：{title}', 4)
     for item in items:
-        P(f'  {item}', size=Pt(9.5), color=C['框架'])
+        P(f'  {item}', size=S['小字'], color=C['框架'])
 
 # ═══════════════════════════════
 # 封面与总策略
 # ═══════════════════════════════
 H('思想道德与法治（2023年版）备考练习手册 v2', 0)
 P('设计理念：数值框架串联 · 矩阵表格对比 · 易混辨析 · 典例精析 · 章末速测', bold=True)
-P('使用顺序：① 先看 零、知识地图 建框架 → ② 再看 一、备考总策略 学方法 → ③ 七个专题逐个练 → ④ 综合模拟卷收尾', bold=True, size=10)
+P('使用顺序：① 先看 零、知识地图 建框架 → ② 再看 一、备考总策略 学方法 → ③ 七个专题逐个练 → ④ 综合模拟卷收尾', bold=True, size=S['小字'])
 
 # ═══════════ 零、知识地图 ═══════════
 doc.add_page_break()
 H('零、知识地图：全书树状结构速览', 1)
-P('先花15分钟通读此处，建立全书骨架。做题时随时回查对应知识点。', size=10)
+P('先花15分钟通读此处，建立全书骨架。做题时随时回查对应知识点。', size=S['小字'])
 
 H('绪论 担当复兴大任 成就时代新人', 2)
 P('第一节 我们处在中国特色社会主义新时代', bold=True)
-P('  一、新时代的意义=三个"意味着"', size=10)
-P('  二、新时代的内涵=五个"是"', size=10)
-P('  三、中国梦=国家富强+民族振兴+人民幸福', size=10)
+P('  一、新时代的意义=三个"意味着"', size=S['小字'])
+P('  二、新时代的内涵=五个"是"', size=S['小字'])
+P('  三、中国梦=国家富强+民族振兴+人民幸福', size=S['小字'])
 P('第二节 新时代呼唤担当民族复兴大任的时代新人', bold=True)
-P('  一、立大志+明大德+成大才+担大任', size=10)
+P('  一、立大志+明大德+成大才+担大任', size=S['小字'])
 P('第三节 不断提升思想道德素质和法治素养', bold=True)
-P('  一、思想道德与法律的关系（上层建筑/协同发力/车之两轮鸟之两翼）', size=10)
-P('  二、学习本课程的意义（领悟人生真谛/遵守道德规范/学习法治思想）', size=10)
+P('  一、思想道德与法律的关系（上层建筑/协同发力/车之两轮鸟之两翼）', size=S['小字'])
+P('  二、学习本课程的意义（领悟人生真谛/遵守道德规范/学习法治思想）', size=S['小字'])
 
 H('第一章 领悟人生真谛 把握人生方向', 2)
 P('第一节 人生观是对人生的总看法', bold=True)
-P('  一、人的本质=一切社会关系的总和(马克思)，社会属性是本质属性', size=10)
-P('  二、个人与社会：对立统一，最根本=个人利益与社会利益关系', size=10)
-P('  三、人生观三要素：人生目的(核心)→人生态度→人生价值', size=10)
-P('    自我价值(前提) + 社会价值(保障) 相互依存', size=10)
-P('  四、人生观⇔世界观⇔价值观（世界观决定人生观，人生观反作用）', size=10)
+P('  一、人的本质=一切社会关系的总和(马克思)，社会属性是本质属性', size=S['小字'])
+P('  二、个人与社会：对立统一，最根本=个人利益与社会利益关系', size=S['小字'])
+P('  三、人生观三要素：人生目的(核心)→人生态度→人生价值', size=S['小字'])
+P('    自我价值(前提) + 社会价值(保障) 相互依存', size=S['小字'])
+P('  四、人生观⇔世界观⇔价值观（世界观决定人生观，人生观反作用）', size=S['小字'])
 P('第二节 正确的人生观', bold=True)
-P('  一、高尚人生追求=服务人民奉献社会（最先进）', size=10)
-P('  二、人生态度四维度=认真+务实+乐观+进取', size=10)
-P('  三、人生价值评价：根本尺度(符合规律+促进进步)+基本尺度(劳动贡献)', size=10)
-P('     评价方法三统一：贡献⇔尽力/物质⇔精神/社会⇔自身', size=10)
+P('  一、高尚人生追求=服务人民奉献社会（最先进）', size=S['小字'])
+P('  二、人生态度四维度=认真+务实+乐观+进取', size=S['小字'])
+P('  三、人生价值评价：根本尺度(符合规律+促进进步)+基本尺度(劳动贡献)', size=S['小字'])
+P('     评价方法三统一：贡献⇔尽力/物质⇔精神/社会⇔自身', size=S['小字'])
 P('第三节 创造有意义的人生', bold=True)
-P('  一、辩证对待五对矛盾：得失/苦乐/顺逆/生死/荣辱', size=10)
-P('  二、反对三种错误：拜金主义/享乐主义/极端个人主义', size=10)
-P('  三、成就出彩人生=三同：与历史同向+与祖国同行+与人民同在', size=10)
+P('  一、辩证对待五对矛盾：得失/苦乐/顺逆/生死/荣辱', size=S['小字'])
+P('  二、反对三种错误：拜金主义/享乐主义/极端个人主义', size=S['小字'])
+P('  三、成就出彩人生=三同：与历史同向+与祖国同行+与人民同在', size=S['小字'])
 
 H('第二章 追求远大理想 坚定崇高信念', 2)
 P('第一节 理想信念的内涵及重要性', bold=True)
-P('  一、理想三特征：超越性+实践性+时代性', size=10)
-P('  二、信念三特征：执着性+支撑性+多样性', size=10)
-P('  三、理想是信念对象，信念是理想保障；信仰是最高层次信念', size=10)
-P('  四、理想信念是精神之钙：昭示目标+催生动力+提供支柱+提高境界', size=10)
+P('  一、理想三特征：超越性+实践性+时代性', size=S['小字'])
+P('  二、信念三特征：执着性+支撑性+多样性', size=S['小字'])
+P('  三、理想是信念对象，信念是理想保障；信仰是最高层次信念', size=S['小字'])
+P('  四、理想信念是精神之钙：昭示目标+催生动力+提供支柱+提高境界', size=S['小字'])
 P('第二节 坚定信仰信念信心', bold=True)
-P('  一、马克思主义四特征：科学+人民+实践+不断发展开放', size=10)
-P('  二、党的领导=中国特色社会主义最本质特征', size=10)
-P('  三、四个自信：道路+理论+制度+文化', size=10)
+P('  一、马克思主义四特征：科学+人民+实践+不断发展开放', size=S['小字'])
+P('  二、党的领导=中国特色社会主义最本质特征', size=S['小字'])
+P('  三、四个自信：道路+理论+制度+文化', size=S['小字'])
 P('第三节 在实现中国梦的实践中放飞青春梦想', bold=True)
-P('  一、理想与现实的对立统一，艰苦奋斗是实现理想的重要条件', size=10)
-P('  二、个人理想以社会理想为指引，社会理想是个人理想的汇聚升华', size=10)
+P('  一、理想与现实的对立统一，艰苦奋斗是实现理想的重要条件', size=S['小字'])
+P('  二、个人理想以社会理想为指引，社会理想是个人理想的汇聚升华', size=S['小字'])
 
 H('第三章 继承优良传统 弘扬中国精神', 2)
 P('第一节 中国精神是兴国强国之魂', bold=True)
-P('  一、崇尚精神是中华民族的优秀传统', size=10)
-P('  二、四个伟大：创造+奋斗+团结+梦想', size=10)
-P('  三、中国精神=爱国主义为核心的民族精神+改革创新为核心的时代精神', size=10)
-P('  四、爱国主义四内涵：爱大好河山+爱骨肉同胞(试金石)+爱灿烂文化+爱自己国家', size=10)
-P('  五、民族精神定义=价值取向/思维方式/道德规范/精神气质的总和', size=10)
-P('  六、时代精神：树立突破陈规意识+培养奋勇争先责任感+保持锐意进取', size=10)
+P('  一、崇尚精神是中华民族的优秀传统', size=S['小字'])
+P('  二、四个伟大：创造+奋斗+团结+梦想', size=S['小字'])
+P('  三、中国精神=爱国主义为核心的民族精神+改革创新为核心的时代精神', size=S['小字'])
+P('  四、爱国主义四内涵：爱大好河山+爱骨肉同胞(试金石)+爱灿烂文化+爱自己国家', size=S['小字'])
+P('  五、民族精神定义=价值取向/思维方式/道德规范/精神气质的总和', size=S['小字'])
+P('  六、时代精神：树立突破陈规意识+培养奋勇争先责任感+保持锐意进取', size=S['小字'])
 P('第二节 做新时代的忠诚爱国者', bold=True)
-P('  一、爱国本质=爱国爱党爱社会主义高度统一', size=10)
-P('  二、维护祖国统一：和平统一一国两制；铸牢中华民族共同体意识', size=10)
-P('  三、旗帜鲜明反对历史虚无主义；立足中国又面向世界→人类命运共同体', size=10)
+P('  一、爱国本质=爱国爱党爱社会主义高度统一', size=S['小字'])
+P('  二、维护祖国统一：和平统一一国两制；铸牢中华民族共同体意识', size=S['小字'])
+P('  三、旗帜鲜明反对历史虚无主义；立足中国又面向世界→人类命运共同体', size=S['小字'])
 P('第三节 让改革创新成为青春远航的动力', bold=True)
-P('  一、创新是改革开放的生命、第一动力', size=10)
-P('  二、做改革创新生力军：自觉意识+能力本领', size=10)
+P('  一、创新是改革开放的生命、第一动力', size=S['小字'])
+P('  二、做改革创新生力军：自觉意识+能力本领', size=S['小字'])
 
 H('第四章 明确价值要求 践行价值准则', 2)
 P('第一节 全体人民共同的价值追求', bold=True)
-P('  一、三层面12词：国家(富强民主文明和谐)/社会(自由平等公正法治)/公民(爱国敬业诚信友善)', size=10)
-P('  二、核心价值观=核心价值体系的精神内核+高度凝练集中表达', size=10)
-P('  三、2018宪法修正案写入；核心价值观=文化软实力的灵魂', size=10)
+P('  一、三层面12词：国家(富强民主文明和谐)/社会(自由平等公正法治)/公民(爱国敬业诚信友善)', size=S['小字'])
+P('  二、核心价值观=核心价值体系的精神内核+高度凝练集中表达', size=S['小字'])
+P('  三、2018宪法修正案写入；核心价值观=文化软实力的灵魂', size=S['小字'])
 P('第二节 社会主义核心价值观的显著特征', bold=True)
-P('  一、先进性：体现社会主义本质+扎根传统文化+吸纳世界文明', size=10)
-P('  二、人民性=根本特性；真实性=真实可信', size=10)
-P('  三、认清西方"普世价值"实质', size=10)
+P('  一、先进性：体现社会主义本质+扎根传统文化+吸纳世界文明', size=S['小字'])
+P('  二、人民性=根本特性；真实性=真实可信', size=S['小字'])
+P('  三、认清西方"普世价值"实质', size=S['小字'])
 P('第三节 积极践行社会主义核心价值观', bold=True)
-P('  一、扣好人生的扣子，大学是价值观养成的关键阶段', size=10)
-P('  二、践行四方法：勤学+修德+明辨+笃实', size=10)
+P('  一、扣好人生的扣子，大学是价值观养成的关键阶段', size=S['小字'])
+P('  二、践行四方法：勤学+修德+明辨+笃实', size=S['小字'])
 
 H('第五章 遵守道德规范 锤炼道德品格', 2)
 P('第一节 社会主义道德的核心与原则', bold=True)
-P('  一、道德起源三条件：劳动(首要)+社会关系(客观)+自我意识(主观)', size=10)
-P('  二、道德本质=特殊社会意识形态(上层建筑)，反映社会经济关系', size=10)
-P('  三、三大功能：认识+规范+调节（无强制力！）', size=10)
-P('  四、核心=为人民服务(显著标志)，原则=集体主义', size=10)
-P('  五、集体主义三层次：无私奉献(最高)→先公后私(中间)→遵纪守法(基本)', size=10)
+P('  一、道德起源三条件：劳动(首要)+社会关系(客观)+自我意识(主观)', size=S['小字'])
+P('  二、道德本质=特殊社会意识形态(上层建筑)，反映社会经济关系', size=S['小字'])
+P('  三、三大功能：认识+规范+调节（无强制力！）', size=S['小字'])
+P('  四、核心=为人民服务(显著标志)，原则=集体主义', size=S['小字'])
+P('  五、集体主义三层次：无私奉献(最高)→先公后私(中间)→遵纪守法(基本)', size=S['小字'])
 P('第二节 吸收借鉴优秀道德成果', bold=True)
-P('  一、中华传统美德五精神：整体利益/仁爱/人伦/精神境界/道德修养', size=10)
-P('  二、反对复古论+虚无论；创造性转化创新性发展', size=10)
-P('  三、中国革命道德：为共产主义奋斗+为人民服务+革命利益首位+修身自律', size=10)
+P('  一、中华传统美德五精神：整体利益/仁爱/人伦/精神境界/道德修养', size=S['小字'])
+P('  二、反对复古论+虚无论；创造性转化创新性发展', size=S['小字'])
+P('  三、中国革命道德：为共产主义奋斗+为人民服务+革命利益首位+修身自律', size=S['小字'])
 P('第三节 投身崇德向善的道德实践', bold=True)
-P('  一、四德领域：社会公德/职业道德/家庭美德/个人品德（各5项规范）', size=10)
-P('  二、引领社会风尚：知荣辱+讲正气+作奉献+促和谐', size=10)
+P('  一、四德领域：社会公德/职业道德/家庭美德/个人品德（各5项规范）', size=S['小字'])
+P('  二、引领社会风尚：知荣辱+讲正气+作奉献+促和谐', size=S['小字'])
 
 H('第六章 学习法治思想 提升法治素养', 2)
 P('第一节 社会主义法律的特征和运行', bold=True)
-P('  一、法律定义=国家制定或认可+强制力保证+反映统治阶级意志+由物质条件决定', size=10)
-P('  二、我国法律本质=党和人民意志统一+科学性先进性+建设保障', size=10)
-P('  三、法律运行四环节：制定(起始关键)→执行(重要)→适用(司法)→遵守(守法)', size=10)
+P('  一、法律定义=国家制定或认可+强制力保证+反映统治阶级意志+由物质条件决定', size=S['小字'])
+P('  二、我国法律本质=党和人民意志统一+科学性先进性+建设保障', size=S['小字'])
+P('  三、法律运行四环节：制定(起始关键)→执行(重要)→适用(司法)→遵守(守法)', size=S['小字'])
 P('第二节 坚持全面依法治国', bold=True)
-P('  一、习近平法治思想=十一个坚持', size=10)
-P('  二、法治道路五项原则：党的领导(最根本)+人民主体+法律面前人人平等+依法治国与以德治国+从中国实际出发', size=10)
-P('  三、新十六字方针：科学立法(前提)+严格执法(关键)+公正司法(重点/最后防线)+全民守法(基础)', size=10)
-P('  四、法治体系=五个体系；一体建设：法治国家(目标)→法治政府(重点)→法治社会(基础)', size=10)
+P('  一、习近平法治思想=十一个坚持', size=S['小字'])
+P('  二、法治道路五项原则：党的领导(最根本)+人民主体+法律面前人人平等+依法治国与以德治国+从中国实际出发', size=S['小字'])
+P('  三、新十六字方针：科学立法(前提)+严格执法(关键)+公正司法(重点/最后防线)+全民守法(基础)', size=S['小字'])
+P('  四、法治体系=五个体系；一体建设：法治国家(目标)→法治政府(重点)→法治社会(基础)', size=S['小字'])
 P('第三节 维护宪法权威', bold=True)
-P('  一、宪法=国家根本法+最高法律效力。1954第一部→现行1982→2018修正。宪法日12.4', size=10)
-P('  二、宪法五原则：党的领导+人民当家作主+尊重保障人权+社会主义法治+民主集中制', size=10)
+P('  一、宪法=国家根本法+最高法律效力。1954第一部→现行1982→2018修正。宪法日12.4', size=S['小字'])
+P('  二、宪法五原则：党的领导+人民当家作主+尊重保障人权+社会主义法治+民主集中制', size=S['小字'])
 P('第四节 自觉尊法学法守法用法', bold=True)
-P('  一、法律权利与义务：不可分割、相互依存', size=10)
-P('  二、提升法治素养：尊重法律权威+学习法律知识+养成守法习惯+提高用法能力', size=10)
+P('  一、法律权利与义务：不可分割、相互依存', size=S['小字'])
+P('  二、提升法治素养：尊重法律权威+学习法律知识+养成守法习惯+提高用法能力', size=S['小字'])
 
 doc.add_page_break()
 H('一、备考总策略', 1)
@@ -820,7 +785,7 @@ s = [
     ('"人为财死鸟为食亡"是( )。', ['A.享乐主义','B.拜金主义','C.个人主义','D.功利主义'], 'B'),
 ]
 for i,(stem,opts,ans) in enumerate(s,1):
-    p=doc.add_paragraph(); p.add_run(f'{i}. {stem}').font.size=Pt(10.5)
+    p=doc.add_paragraph(); p.add_run(f'{i}. {stem}').font.size=S['正文']
     for o in opts: doc.add_paragraph(f'    {o}')
 doc.add_paragraph('\n（答案参见各专题练习）')
 
@@ -840,7 +805,7 @@ m = [
     ('法律权威取决于( )。', ['A.地位和作用','B.科学程度','C.实施程度','D.被尊崇信仰程度'], 'ABCD'),
 ]
 for i,(stem,opts,ans) in enumerate(m,1):
-    p=doc.add_paragraph(); p.add_run(f'{i}. {stem}').font.size=Pt(10.5)
+    p=doc.add_paragraph(); p.add_run(f'{i}. {stem}').font.size=S['正文']
     for o in opts: doc.add_paragraph(f'    {o}')
 doc.add_paragraph('\n（答案参见各专题练习）')
 
@@ -849,7 +814,7 @@ H('三、判断题（共20题，每题1分，共20分）', 2)
 tf_q = ['社会属性是人的本质属性。','评价人生价值的根本尺度是取得物质成就的多少。','全心全意为人民服务是人生观的核心。','拜金主义是引发权钱交易等丑恶现象的重要思想根源。','个人主义是社会主义道德的基本原则。','时代精神的核心是改革创新。','爱国主义与爱社会主义在当代是统一的。','解决台湾问题的基本方针是"一国一制"。','核心价值观是当代中国精神的集中体现。','不存在超越阶级和历史的"普世价值"。','道德依靠国家强制力发挥作用。','集体主义强调国家利益和社会整体利益高于个人利益。','复古论是对待传统道德的正确态度。','个人品德在社会道德建设中具有基础性作用。','新中国第一部宪法诞生于1949年。','党的领导是社会主义法治的最根本保证。','培养法治思维的前提是学习法律知识。','人民法院是依法治国的主体和力量源泉。','守法是法律实施和实现的基本途径。','2018年宪法修正案将核心价值观写入宪法。']
 tf_a = ['对','错','错','对','错','对','对','错','对','对','错','对','错','对','错','对','对','错','对','对']
 for i,(q,a) in enumerate(zip(tf_q,tf_a),1):
-    p=doc.add_paragraph(); p.add_run(f'{i}. {q}').font.size=Pt(10.5)
+    p=doc.add_paragraph(); p.add_run(f'{i}. {q}').font.size=S['正文']
 doc.add_paragraph('\n（答案参见各专题练习）')
 
 doc.add_page_break()
@@ -870,13 +835,13 @@ H('四、模拟卷分析工作流（做完卷子必做！）', 1)
 P('认知科学原理：测试效应(Testing Effect)——提取练习比重复阅读效率高3倍。但前提是必须分析错因。不做分析的刷题=浪费时间。', bold=True)
 
 H('第1步：逐题对答案，标记错题（10分钟）', 2)
-P('• 对完答案，把错题分为三类：', size=10)
-P('  🔴 完全不会（知识点根本没记住）→ 回专题看「知识点汇总」', size=10)
-P('  🟡 似懂非懂（两个选项纠结选错了）→ 回专题看「易混辨析」', size=10)
-P('  🟢 粗心错误（看错题/涂错卡/漏看"不正确的是"）→ 标记但不回看，下次注意', size=10)
+P('• 对完答案，把错题分为三类：', size=S['小字'])
+P('  🔴 完全不会（知识点根本没记住）→ 回专题看「知识点汇总」', size=S['小字'])
+P('  🟡 似懂非懂（两个选项纠结选错了）→ 回专题看「易混辨析」', size=S['小字'])
+P('  🟢 粗心错误（看错题/涂错卡/漏看"不正确的是"）→ 标记但不回看，下次注意', size=S['小字'])
 
 H('第2步：错题归因（20分钟）', 2)
-P('每道🔴🟡错题，在下面表格打钩：', size=10)
+P('每道🔴🟡错题，在下面表格打钩：', size=S['小字'])
 TBL(
     ['题号', '题型', '错因类型', '对应知识点', '应回专题'],
     [
@@ -892,43 +857,43 @@ TBL(
         ['', '', '□ 知识点没记住 □ 概念混淆 □ 审题错误 □ 选项陷阱', '', ''],
     ]
 )
-P('打印后手写，或用笔记本照此格式记录。', size=10)
+P('打印后手写，或用笔记本照此格式记录。', size=S['小字'])
 
 H('第3步：薄弱知识点回溯（15分钟）', 2)
-P('统计错因最多的三个知识点，回到对应专题重做该知识点的全部题目。', size=10)
-P('例如：如果"法律与道德关系"错了3题→回专题一，把单选8-9+判断4-5全部重做一遍。', size=10)
+P('统计错因最多的三个知识点，回到对应专题重做该知识点的全部题目。', size=S['小字'])
+P('例如：如果"法律与道德关系"错了3题→回专题一，把单选8-9+判断4-5全部重做一遍。', size=S['小字'])
 
 H('第4步：变式自测（10分钟）', 2)
-P('把每道错题换一种问法考自己——这是最高效的提取练习。', size=10)
-P('例：原题问"法律区别于道德的首要之处是( )"，变式为"道德区别于法律的首要之处是( )"→答案完全不同。', size=10)
-P('例：原题问"社会主义道德的核心是？"，变式为"社会主义道德的原则是？"→核心≠原则，反复对比才能刻进记忆。', size=10)
+P('把每道错题换一种问法考自己——这是最高效的提取练习。', size=S['小字'])
+P('例：原题问"法律区别于道德的首要之处是( )"，变式为"道德区别于法律的首要之处是( )"→答案完全不同。', size=S['小字'])
+P('例：原题问"社会主义道德的核心是？"，变式为"社会主义道德的原则是？"→核心≠原则，反复对比才能刻进记忆。', size=S['小字'])
 
 doc.add_page_break()
 H('五、统一理解与框架重构（全书压缩）', 1)
 P('学完全部专题+做完模拟卷+分析完错题后，进入此阶段。', bold=True)
-P('目标：把整本书压缩成一张可以口头复述的知识网。检验标准：不看任何资料，能讲出下面全部内容。', size=10)
+P('目标：把整本书压缩成一张可以口头复述的知识网。检验标准：不看任何资料，能讲出下面全部内容。', size=S['小字'])
 
 H('🔑 全书最小记忆单元（口头复述版）', 2)
-P('【绪论】新时代=3个意味着+5个是。中国梦=国家富强民族振兴人民幸福。时代新人=立大志明大德成大才担大任。', bold=False, size=10)
-P('【第一章=人生观】人的本质是社会关系总和。人生观=目的(核心)+态度+价值。高尚追求=服务人民奉献社会。态度=认真务实乐观进取。评价=根本尺度(符合规律促进进步)+基本尺度(劳动贡献)。五矛盾=得失苦乐顺逆生死荣辱。三错误=拜金享乐个人。出彩人生=三同。', bold=False, size=10)
-P('【第二章=理想信念】理想=超越+实践+时代。信念=执着+支撑+多样。信仰是最高信念。精神之钙=昭示+催生+提供+提高。马克思主义=科学+人民+实践+开放。最本质特征=党的领导。四自信=道理制文。个人理想以社会理想为指引。', bold=False, size=10)
-P('【第三章=中国精神】中国精神=爱国主义(民族核心)+改革创新(时代核心)。四伟大=创造奋斗团结梦想。爱国=爱河山+爱同胞(试金石)+爱文化+爱国家。本质=爱国爱党爱社会主义统一。台湾=和平统一一国两制。', bold=False, size=10)
-P('【第四章=核心价值观】国家=富强民主文明和谐。社会=自由平等公正法治。公民=爱国敬业诚信友善。三特征=先进(方向)+人民(根本)+真实(可信)。践行=勤学修德明辨笃实。2018入宪。', bold=False, size=10)
-P('【第五章=道德】起源=劳动(首要)+社会关系(客观)+自我意识(主观)。核心=为人民服务。原则=集体主义。三层次=无私奉献→先公后私→遵纪守法。四德=社会(文明礼貌助人爱护保护守法)+职业(爱岗诚实公道服务奉献)+家庭(尊老平等和睦勤俭邻里)+个人(爱国明礼勤劳宽厚自强)。', bold=False, size=10)
-P('【第六章=法治】法律=国家制定认可+强制力+统治阶级意志+物质条件。运行=制定(起始关键)→执行(重要)→适用→遵守。16字=科学(前提)+严格(关键)+公正(重点/最后防线)+全民(基础)。5原则=党领导+人民主体+平等+德法结合+实际。宪法=根本法+最高效力。1954→1982→2018。', bold=False, size=10)
+P('【绪论】新时代=3个意味着+5个是。中国梦=国家富强民族振兴人民幸福。时代新人=立大志明大德成大才担大任。', bold=False, size=S['小字'])
+P('【第一章=人生观】人的本质是社会关系总和。人生观=目的(核心)+态度+价值。高尚追求=服务人民奉献社会。态度=认真务实乐观进取。评价=根本尺度(符合规律促进进步)+基本尺度(劳动贡献)。五矛盾=得失苦乐顺逆生死荣辱。三错误=拜金享乐个人。出彩人生=三同。', bold=False, size=S['小字'])
+P('【第二章=理想信念】理想=超越+实践+时代。信念=执着+支撑+多样。信仰是最高信念。精神之钙=昭示+催生+提供+提高。马克思主义=科学+人民+实践+开放。最本质特征=党的领导。四自信=道理制文。个人理想以社会理想为指引。', bold=False, size=S['小字'])
+P('【第三章=中国精神】中国精神=爱国主义(民族核心)+改革创新(时代核心)。四伟大=创造奋斗团结梦想。爱国=爱河山+爱同胞(试金石)+爱文化+爱国家。本质=爱国爱党爱社会主义统一。台湾=和平统一一国两制。', bold=False, size=S['小字'])
+P('【第四章=核心价值观】国家=富强民主文明和谐。社会=自由平等公正法治。公民=爱国敬业诚信友善。三特征=先进(方向)+人民(根本)+真实(可信)。践行=勤学修德明辨笃实。2018入宪。', bold=False, size=S['小字'])
+P('【第五章=道德】起源=劳动(首要)+社会关系(客观)+自我意识(主观)。核心=为人民服务。原则=集体主义。三层次=无私奉献→先公后私→遵纪守法。四德=社会(文明礼貌助人爱护保护守法)+职业(爱岗诚实公道服务奉献)+家庭(尊老平等和睦勤俭邻里)+个人(爱国明礼勤劳宽厚自强)。', bold=False, size=S['小字'])
+P('【第六章=法治】法律=国家制定认可+强制力+统治阶级意志+物质条件。运行=制定(起始关键)→执行(重要)→适用→遵守。16字=科学(前提)+严格(关键)+公正(重点/最后防线)+全民(基础)。5原则=党领导+人民主体+平等+德法结合+实际。宪法=根本法+最高效力。1954→1982→2018。', bold=False, size=S['小字'])
 
 H('🔗 跨章知识网络（必背3条串联线）', 2)
-P('线索一「精神之钙线」：绪论§7"没有理想信念导致软骨病"→第二章§一"理想信念是精神之钙"昭示目标+催生动力+提供支柱+提高境界。考论述题时两端都要引用。', size=10)
-P('线索二「爱国本质线」：第三章§二"爱国爱党爱社会主义统一"→第二章§二"党的领导是最本质特征"。爱国=爱党=爱社会主义，三位一体不可分割。', size=10)
-P('线索三「法治德治线」：绪论§三"法律是成文道德，道德是内心法律"→第六章§二"依法治国与以德治国相结合"。车之两轮鸟之两翼——单独用一条腿走不了路。', size=10)
+P('线索一「精神之钙线」：绪论§7"没有理想信念导致软骨病"→第二章§一"理想信念是精神之钙"昭示目标+催生动力+提供支柱+提高境界。考论述题时两端都要引用。', size=S['小字'])
+P('线索二「爱国本质线」：第三章§二"爱国爱党爱社会主义统一"→第二章§二"党的领导是最本质特征"。爱国=爱党=爱社会主义，三位一体不可分割。', size=S['小字'])
+P('线索三「法治德治线」：绪论§三"法律是成文道德，道德是内心法律"→第六章§二"依法治国与以德治国相结合"。车之两轮鸟之两翼——单独用一条腿走不了路。', size=S['小字'])
 
 H('🧠 背诵自检循环', 2)
-P('按以下循环练习，直到每章都能口头复述：', size=10)
-P('① 盖住上面的「全书最小记忆单元」', size=10)
-P('② 拿出一张白纸，默写该章所有关键词（不是全文，是关键词链）', size=10)
-P('③ 对照原文，用红笔补上漏掉的关键词', size=10)
-P('④ 口头复述一遍完整版（出声！出声比默读记忆效率高2倍）', size=10)
-P('⑤ 睡前再复述一遍（睡眠中大脑会巩固记忆）', size=10)
+P('按以下循环练习，直到每章都能口头复述：', size=S['小字'])
+P('① 盖住上面的「全书最小记忆单元」', size=S['小字'])
+P('② 拿出一张白纸，默写该章所有关键词（不是全文，是关键词链）', size=S['小字'])
+P('③ 对照原文，用红笔补上漏掉的关键词', size=S['小字'])
+P('④ 口头复述一遍完整版（出声！出声比默读记忆效率高2倍）', size=S['小字'])
+P('⑤ 睡前再复述一遍（睡眠中大脑会巩固记忆）', size=S['小字'])
 
 doc.add_page_break()
 H('六、考前10分钟速记卡', 1)
@@ -948,7 +913,7 @@ TBL(
 )
 
 P('', size=6)
-P('进考场最后三件事：① 再看一遍"易混辨析"里你之前错过的那几个 ② 确认宪法日12.4/国家安全日4.15 ③ 深呼吸，你准备够了。', bold=True, size=10)
+P('进考场最后三件事：① 再看一遍"易混辨析"里你之前错过的那几个 ② 确认宪法日12.4/国家安全日4.15 ③ 深呼吸，你准备够了。', bold=True, size=S['小字'])
 
 # ── 保存 ──
 out = '/Users/marlin/Desktop/sixiu-review/思想道德与法治备考练习手册.docx'
